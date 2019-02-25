@@ -3,37 +3,105 @@ import java.util.HashMap;
 import java.util.Map;
 
 class Player160983966 extends GomokuPlayer {
-
-    public static final String ANSI_RESET = "\033[0m";
-    public static final String ANSI_BLACK = "\033[0;30m";
-    public static final String ANSI_RED = "\033[0;31m";
-
-    Map<Integer, Color[][]> storedBoards = new HashMap<Integer, Color[][]>();
+    private boolean firstMove = false;
+    private boolean winningMoveFound = false;
+    private Move winningMove;
 
     public Move chooseMove(Color[][] board, Color me) {
-        //printBoard(board);
         try {
-            minmax(board, 0, me);
+            MoveScore moveScore = minmax(board, 1, me, Integer.MIN_VALUE, Integer.MAX_VALUE);
+            return moveScore.move;
         } catch (Exception e) {
             e.printStackTrace();
         }
+
         for (int row = 0; row < GomokuBoard.ROWS; row++)
-        for (int col = 0; col < GomokuBoard.COLS; col++)
-        if (board[row][col] == null)
-        return new Move(row, col);
+			for (int col = 0; col < GomokuBoard.COLS; col++)
+				if (board[row][col] == null)
+					return new Move(row, col);
+
         return null;
     }
 
-    public int minmax(Color[][] board, int depth, Color me) {
-        int heuristicValue = Integer.MAX_VALUE;
-        if (depth == 0 || checkIfVictory(board, me)) {
-            return heuristicEvaluation(board, me);
+    public MoveScore minmax(Color[][] board, int depth, Color me, int alpha, int beta) {
+        if (depth == 0) {
+            //Winning move return
+            return new MoveScore();
         }
-        return 0;
+        if (checkIfVictory(board, me)) {
+            winningMoveFound = true;
+            return winningMove;
+        }
+        if (me == Color.white) {
+            if (!firstMove) {
+                firstMove = true;
+                return new MoveScore(0, new Move(3,3));
+            }
+            //Maximizing Player
+            MoveScore best = new MoveScore(Integer.MIN_VALUE);
+            for (int i = 0; i < board.length; i++) {
+                for (int j = 0; j < board.length; j++) {
+                    if (board[i][j] == null) {
+                        board[i][j] = Color.white;
+                        MoveScore moveScore = minmax(board, depth - 1, Color.black, alpha, beta);
+                        board[i][j] = null;
+                        moveScore.move = new Move(i, j);
+                        moveScore.score = heuristicEvaluation(board, me);
+                        // if (moveScore.score > best.score) {
+                        //     best = moveScore;
+                        // }
+                        // if (moveScore.score > alpha) {
+                        //     alpha = moveScore.score;
+                        // }
+                        // if (beta <= alpha) {
+                        //     break;
+                        // }
+                    }
+                }
+            }
+            return best;
+        } else {
+            //Minimizing Player
+            firstMove = true;
+            MoveScore best = new MoveScore(Integer.MAX_VALUE);
+            for (int i = 0; i < board.length; i++) {
+                for ( int j = 0; j < board[i].length; j++) {
+                    if (board[i][j] == null) {
+                        board[i][j] = Color.black;
+                        MoveScore moveScore = minmax(board, depth - 1, Color.white, alpha, beta);
+                        board[i][j] = null;
+                        moveScore.move = new Move(i, j);
+                        moveScore.score = heuristicEvaluation(board, me);
+                        // if (moveScore.score < best.score) {
+                        //     best = moveScore;
+                        // }
+                        // if (beta < best.score) {
+                        //     beta = best.score;
+                        // }
+                        // if (beta <= alpha) {
+                        //     break;
+                        // }
+                    }
+                }
+            }
+            return best;
+        }
+
     }
 
     public Boolean checkIfVictory(Color[][] board, Color me) {
-        return true;
+        int score = heuristicEvaluation(board, me);
+        if (score > 10000) {
+            if (me == Color.white) {
+                return true;
+            }
+        }
+        if (score < -10000) {
+            if (me == Color.black) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public int heuristicEvaluation(Color[][] board, Color me) {
@@ -48,7 +116,30 @@ class Player160983966 extends GomokuPlayer {
         checkDiagonalL(board, scoredBoard, me);
         checkDiagonalR(board, scoredBoard, me);
         printScoredBoard(board, scoredBoard);
-        return 0;
+        return getScore(scoredBoard);
+    }
+
+    private int getScore(squareScore[][] scoredBoard) {
+        int score = 0;
+        int whiteScore = 0;
+        int blackScore = 0;
+        for (int row = 0; row < scoredBoard.length; row++) {
+            for (int col = 0; col < scoredBoard[row].length; col++) {
+                if (scoredBoard[row][col].whitePoint > whiteScore) {
+                    whiteScore = scoredBoard[row][col].whitePoint;
+                }
+                if (scoredBoard[row][col].blackPoint > blackScore) {
+                    blackScore = scoredBoard[row][col].blackPoint;
+                }
+            }
+        }
+        if (whiteScore > blackScore) {
+            score = whiteScore;
+        } else {
+            score = -blackScore;
+        }
+        System.out.println("Score: " + score);
+        return score;
     }
 
     private void checkHorizontal(Color[][] board, squareScore[][] scoredBoard, Color me) {
@@ -222,11 +313,11 @@ class Player160983966 extends GomokuPlayer {
         for (int i = 0; i < board.length; i++) {
             for (int j = 0; j < board[i].length; j++) {
                 if (board[i][j] == Color.black) {
-                    System.out.print("|( B )|");
+                    System.out.print("| B |");
                 } else if (board[i][j] == Color.white) {
-                    System.out.print("|( W )|");
+                    System.out.print("| W |");
                 } else {
-                    System.out.print("|(" + scoredBoard[i][j].blackPoint + "," + scoredBoard[i][j].whitePoint + ")|");
+                    System.out.print("| " + scoredBoard[i][j].whitePoint  + "," + scoredBoard[i][j].blackPoint + " |");
                 }
             }
             System.out.println("\n");
@@ -239,4 +330,25 @@ class Player160983966 extends GomokuPlayer {
 class squareScore {
     public int blackPoint = 0;
     public int whitePoint = 0;
+}
+
+class MoveScore {
+    public int score;
+    public Move move;
+
+    public MoveScore() {
+        score = 0;
+        move = new Move(0,0);
+    }
+
+    public MoveScore(int score) {
+        score = 0;
+        this.move = new Move(2, 2);
+    }
+
+    public MoveScore(int score, Move move) {
+        this.score = score;
+        this.move = move;
+    }
+
 }
